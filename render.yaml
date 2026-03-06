@@ -2,11 +2,9 @@ services:
   - type: web
     name: fetch-downloader
     env: python
-    buildCommand: |
-      pip install -r requirements.txt
-      apt-get install -y ffmpeg || true
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn server:app --workers 2 --timeout 300 --bind 0.0.0.0:$PORT
     envVars:
       - key: ACCESS_PASSWORD
-        generateValue: false   # Set manually in Render dashboard for password protection
+        value: ""   # Set a password here or in the Render dashboard
     autoDeploy: true
