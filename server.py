@@ -1,6 +1,5 @@
 """
 FETCH — Render-Ready Backend
-Cookies are loaded from Render Secret Files at /etc/secrets/cookies.txt
 """
 
 from flask import Flask, request, jsonify, Response, stream_with_context
@@ -10,6 +9,7 @@ import os
 import uuid
 import threading
 import time
+import shutil
 
 try:
     import static_ffmpeg
@@ -22,15 +22,18 @@ app = Flask(__name__)
 CORS(app, origins=["*"])
 
 TEMP_DIR = "/tmp/fetch_downloads"
-COOKIES_FILE = "/etc/secrets/cookies.txt"
+SECRET_COOKIES = "/etc/secrets/cookies.txt"
+COOKIES_FILE = "/tmp/cookies.txt"   # writable copy in /tmp
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
-if os.path.exists(COOKIES_FILE):
-    print("[FETCH] cookies.txt found at /etc/secrets/ ✓")
+# Copy cookies from read-only /etc/secrets to writable /tmp
+if os.path.exists(SECRET_COOKIES):
+    shutil.copy2(SECRET_COOKIES, COOKIES_FILE)
+    print("[FETCH] cookies.txt copied to /tmp ✓")
 else:
-    print("[FETCH] cookies.txt NOT found at /etc/secrets/")
+    print("[FETCH] No cookies.txt found in /etc/secrets/")
 
 
 def check_auth(req):
@@ -162,16 +165,20 @@ def get_info():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "FETCH", "cookies": os.path.exists(COOKIES_FILE)})
+    return jsonify({
+        "status": "ok",
+        "service": "FETCH",
+        "cookies": os.path.exists(COOKIES_FILE)
+    })
 
 
 @app.route("/debug", methods=["GET"])
 def debug():
     info = {
-        "cookies_file_exists": os.path.exists(COOKIES_FILE),
-        "cookies_file_size": os.path.getsize(COOKIES_FILE) if os.path.exists(COOKIES_FILE) else 0,
-        "cookies_first_3_lines": [],
+        "secret_file_exists": os.path.exists(SECRET_COOKIES),
+        "tmp_cookies_exists": os.path.exists(COOKIES_FILE),
         "cookies_line_count": 0,
+        "cookies_first_3_lines": [],
     }
     if os.path.exists(COOKIES_FILE):
         with open(COOKIES_FILE) as f:
