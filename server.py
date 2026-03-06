@@ -198,3 +198,22 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+
+@app.route("/debug", methods=["GET"])
+def debug():
+    """Temporary debug route — remove after fixing cookies"""
+    info = {
+        "cookies_file_exists": os.path.exists(COOKIES_FILE),
+        "cookies_file_size": os.path.getsize(COOKIES_FILE) if os.path.exists(COOKIES_FILE) else 0,
+        "cookies_first_3_lines": [],
+        "cookies_line_count": 0,
+        "env_var_present": bool(os.environ.get("YOUTUBE_COOKIES", "")),
+        "env_var_length": len(os.environ.get("YOUTUBE_COOKIES", "")),
+    }
+    if os.path.exists(COOKIES_FILE):
+        with open(COOKIES_FILE) as f:
+            lines = f.readlines()
+        info["cookies_line_count"] = len(lines)
+        info["cookies_first_3_lines"] = [l.rstrip() for l in lines[:3]]
+    return jsonify(info)
