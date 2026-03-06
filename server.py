@@ -15,7 +15,7 @@ import uuid
 import threading
 import time
 
-# ── Load static ffmpeg binary (no apt-get / root required) ───────────────────
+# ── Load static ffmpeg ────────────────────────────────────────────────────────
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
@@ -27,12 +27,19 @@ app = Flask(__name__)
 CORS(app, origins=["*"])
 
 TEMP_DIR = "/tmp/fetch_downloads"
-COOKIES_FILE = "/etc/secrets/cookies.txt"
+COOKIES_FILE = "/tmp/yt_cookies.txt"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
-# ── Write cookies from env var to a temp file on startup ─────────────────────
+# ── Write cookies from env var to /tmp (writable on Render) ──────────────────
+YOUTUBE_COOKIES = os.environ.get("YOUTUBE_COOKIES", "")
+if YOUTUBE_COOKIES:
+    with open(COOKIES_FILE, "w") as f:
+        f.write(YOUTUBE_COOKIES)
+    print("[FETCH] YouTube cookies written to /tmp ✓")
+else:
+    print("[FETCH] No YOUTUBE_COOKIES env var found")
 
 
 def check_auth(req):
@@ -64,7 +71,7 @@ def build_ydl_opts(data: dict, out_path: str) -> dict:
         "postprocessors": [],
     }
 
-    # Use cookies if available (bypasses YouTube bot detection)
+    # Use cookies from /tmp if available
     if os.path.exists(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
 
@@ -170,8 +177,11 @@ def get_info():
 
 @app.route("/health", methods=["GET"])
 def health():
-    cookies_loaded = os.path.exists(COOKIES_FILE)
-    return jsonify({"status": "ok", "service": "FETCH", "cookies": cookies_loaded})
+    return jsonify({
+        "status": "ok",
+        "service": "FETCH",
+        "cookies": os.path.exists(COOKIES_FILE)
+    })
 
 
 if __name__ == "__main__":
