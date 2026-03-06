@@ -27,29 +27,13 @@ app = Flask(__name__)
 CORS(app, origins=["*"])
 
 TEMP_DIR = "/tmp/fetch_downloads"
-COOKIES_FILE = "/tmp/yt_cookies.txt"
+COOKIES_FILE = "/etc/secrets/cookies.txt"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
-# ── Write cookies from env var to /tmp (writable on Render) ──────────────────
-YOUTUBE_COOKIES = os.environ.get("YOUTUBE_COOKIES", "")
-if YOUTUBE_COOKIES:
-    lines = YOUTUBE_COOKIES.strip().splitlines()
-    # Ensure valid Netscape header
-    if not any("Netscape" in l for l in lines[:3]):
-        lines = ["# Netscape HTTP Cookie File", "# https://curl.se/docs/http-cookies.html", ""] + lines
-    # Filter out blank/comment lines that aren't the header, keep valid cookie rows
-    valid = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("#") or stripped == "":
-            valid.append(line)
-        elif len(stripped.split("\t")) >= 6:
-            valid.append(line)
-    with open(COOKIES_FILE, "w") as f:
-        f.write("\n".join(valid) + "\n")
-    print(f"[FETCH] YouTube cookies written to /tmp ({len(valid)} lines) ✓")
+# Cookies are read directly from /etc/secrets/cookies.txt (Render Secret Files)
+print(f"[FETCH] Cookies file exists: {os.path.exists(COOKIES_FILE)}")
 else:
     print("[FETCH] No YOUTUBE_COOKIES env var found")
 
@@ -208,8 +192,7 @@ def debug():
         "cookies_file_size": os.path.getsize(COOKIES_FILE) if os.path.exists(COOKIES_FILE) else 0,
         "cookies_first_3_lines": [],
         "cookies_line_count": 0,
-        "env_var_present": bool(os.environ.get("YOUTUBE_COOKIES", "")),
-        "env_var_length": len(os.environ.get("YOUTUBE_COOKIES", "")),
+        "source": "secret_file",
     }
     if os.path.exists(COOKIES_FILE):
         with open(COOKIES_FILE) as f:
