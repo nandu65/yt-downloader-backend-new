@@ -1,10 +1,6 @@
 """
 FETCH — Render-Ready Backend
-Streams downloaded video directly to the user's browser, then deletes the temp file.
-
-Deploy on Render as a Web Service:
-  - Build Command:  pip install -r requirements.txt
-  - Start Command:  gunicorn server:app --workers 2 --timeout 300
+Cookies are loaded from Render Secret Files at /etc/secrets/cookies.txt
 """
 
 from flask import Flask, request, jsonify, Response, stream_with_context
@@ -15,11 +11,10 @@ import uuid
 import threading
 import time
 
-# ── Load static ffmpeg ────────────────────────────────────────────────────────
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
-    print("[FETCH] static-ffmpeg loaded ✓")
+    print("[FETCH] static-ffmpeg loaded")
 except Exception as e:
     print(f"[FETCH] static-ffmpeg warning: {e}")
 
@@ -32,10 +27,10 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
-# Cookies are read directly from /etc/secrets/cookies.txt (Render Secret Files)
-print(f"[FETCH] Cookies file exists: {os.path.exists(COOKIES_FILE)}")
+if os.path.exists(COOKIES_FILE):
+    print("[FETCH] cookies.txt found at /etc/secrets/ ✓")
 else:
-    print("[FETCH] No YOUTUBE_COOKIES env var found")
+    print("[FETCH] cookies.txt NOT found at /etc/secrets/")
 
 
 def check_auth(req):
@@ -44,7 +39,7 @@ def check_auth(req):
     return req.headers.get("X-Access-Token", "") == ACCESS_PASSWORD
 
 
-def cleanup_file(path: str, delay: int = 60):
+def cleanup_file(path, delay=60):
     def _delete():
         time.sleep(delay)
         try:
@@ -55,7 +50,7 @@ def cleanup_file(path: str, delay: int = 60):
     threading.Thread(target=_delete, daemon=True).start()
 
 
-def build_ydl_opts(data: dict, out_path: str) -> dict:
+def build_ydl_opts(data, out_path):
     fmt = data.get("format", "bestvideo+bestaudio/best")
     ext = data.get("ext", "mp4")
     opts = {
@@ -66,11 +61,8 @@ def build_ydl_opts(data: dict, out_path: str) -> dict:
         "no_warnings": True,
         "postprocessors": [],
     }
-
-    # Use cookies from /tmp if available
     if os.path.exists(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
-
     if ext not in ("mp3", "m4a"):
         opts["merge_output_format"] = ext
     else:
@@ -96,7 +88,6 @@ def build_ydl_opts(data: dict, out_path: str) -> dict:
 def download():
     if not check_auth(request):
         return jsonify({"error": "Unauthorized"}), 401
-
     data = request.get_json()
     if not data or not data.get("url"):
         return jsonify({"error": "No URL provided"}), 400
@@ -121,8 +112,7 @@ def download():
         actual_ext = out_file.rsplit(".", 1)[-1]
         mime_map = {
             "mp4": "video/mp4", "mkv": "video/x-matroska",
-            "webm": "video/webm", "mp3": "audio/mpeg",
-            "m4a": "audio/mp4",
+            "webm": "video/webm", "mp3": "audio/mpeg", "m4a": "audio/mp4",
         }
         safe_title = "".join(c for c in title if c.isalnum() or c in " -_").strip()[:80]
 
@@ -140,7 +130,6 @@ def download():
                 "Content-Length": str(os.path.getsize(out_file)),
             }
         )
-
     except yt_dlp.utils.DownloadError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -173,26 +162,16 @@ def get_info():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({
-        "status": "ok",
-        "service": "FETCH",
-        "cookies": os.path.exists(COOKIES_FILE)
-    })
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    return jsonify({"status": "ok", "service": "FETCH", "cookies": os.path.exists(COOKIES_FILE)})
 
 
 @app.route("/debug", methods=["GET"])
 def debug():
-    """Temporary debug route — remove after fixing cookies"""
     info = {
         "cookies_file_exists": os.path.exists(COOKIES_FILE),
         "cookies_file_size": os.path.getsize(COOKIES_FILE) if os.path.exists(COOKIES_FILE) else 0,
         "cookies_first_3_lines": [],
         "cookies_line_count": 0,
-        "source": "secret_file",
     }
     if os.path.exists(COOKIES_FILE):
         with open(COOKIES_FILE) as f:
@@ -200,3 +179,7 @@ def debug():
         info["cookies_line_count"] = len(lines)
         info["cookies_first_3_lines"] = [l.rstrip() for l in lines[:3]]
     return jsonify(info)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
