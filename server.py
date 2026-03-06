@@ -23,17 +23,16 @@ CORS(app, origins=["*"])
 
 TEMP_DIR = "/tmp/fetch_downloads"
 SECRET_COOKIES = "/etc/secrets/cookies.txt"
-COOKIES_FILE = "/tmp/cookies.txt"   # writable copy in /tmp
+COOKIES_FILE = "/tmp/cookies.txt"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
-# Copy cookies from read-only /etc/secrets to writable /tmp
 if os.path.exists(SECRET_COOKIES):
     shutil.copy2(SECRET_COOKIES, COOKIES_FILE)
     print("[FETCH] cookies.txt copied to /tmp ✓")
 else:
-    print("[FETCH] No cookies.txt found in /etc/secrets/")
+    print("[FETCH] No cookies.txt found")
 
 
 def check_auth(req):
@@ -56,16 +55,41 @@ def cleanup_file(path, delay=60):
 def build_ydl_opts(data, out_path):
     fmt = data.get("format", "bestvideo+bestaudio/best")
     ext = data.get("ext", "mp4")
+
     opts = {
-        "format": fmt,
+        # Format with multiple fallbacks
+        "format": f"{fmt}/bestvideo+bestaudio/best/best",
         "outtmpl": out_path,
         "noplaylist": not data.get("playlist", False),
         "quiet": True,
         "no_warnings": True,
         "postprocessors": [],
+
+        # Spoof a real browser to avoid bot detection
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-us,en;q=0.5",
+            "Sec-Fetch-Mode": "navigate",
+        },
+
+        # Use Android client — less likely to be blocked than web client
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+                "player_skip": ["webpage", "configs"],
+            }
+        },
+
+        # Slow down requests to look more human
+        "sleep_interval": 1,
+        "max_sleep_interval": 3,
+        "sleep_interval_requests": 1,
     }
+
     if os.path.exists(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
+
     if ext not in ("mp3", "m4a"):
         opts["merge_output_format"] = ext
     else:
@@ -147,7 +171,14 @@ def get_info():
     if not data or not data.get("url"):
         return jsonify({"error": "No URL provided"}), 400
     try:
-        ydl_opts = {"quiet": True}
+        ydl_opts = {
+            "quiet": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                }
+            },
+        }
         if os.path.exists(COOKIES_FILE):
             ydl_opts["cookiefile"] = COOKIES_FILE
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
