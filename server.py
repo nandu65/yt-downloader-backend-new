@@ -35,9 +35,21 @@ ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 # ── Write cookies from env var to /tmp (writable on Render) ──────────────────
 YOUTUBE_COOKIES = os.environ.get("YOUTUBE_COOKIES", "")
 if YOUTUBE_COOKIES:
+    lines = YOUTUBE_COOKIES.strip().splitlines()
+    # Ensure valid Netscape header
+    if not any("Netscape" in l for l in lines[:3]):
+        lines = ["# Netscape HTTP Cookie File", "# https://curl.se/docs/http-cookies.html", ""] + lines
+    # Filter out blank/comment lines that aren't the header, keep valid cookie rows
+    valid = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or stripped == "":
+            valid.append(line)
+        elif len(stripped.split("\t")) >= 6:
+            valid.append(line)
     with open(COOKIES_FILE, "w") as f:
-        f.write(YOUTUBE_COOKIES)
-    print("[FETCH] YouTube cookies written to /tmp ✓")
+        f.write("\n".join(valid) + "\n")
+    print(f"[FETCH] YouTube cookies written to /tmp ({len(valid)} lines) ✓")
 else:
     print("[FETCH] No YOUTUBE_COOKIES env var found")
 
