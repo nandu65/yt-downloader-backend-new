@@ -24,13 +24,15 @@ except Exception as e:
     print(f"[FETCH] static-ffmpeg warning: {e}")
 
 app = Flask(__name__)
-
-CORS(app, origins=["*"])  # Restrict to your domain in production
+CORS(app, origins=["*"])
 
 TEMP_DIR = "/tmp/fetch_downloads"
+COOKIES_FILE = "/etc/secrets/cookies.txt"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
+
+# ── Write cookies from env var to a temp file on startup ─────────────────────
 
 
 def check_auth(req):
@@ -61,6 +63,11 @@ def build_ydl_opts(data: dict, out_path: str) -> dict:
         "no_warnings": True,
         "postprocessors": [],
     }
+
+    # Use cookies if available (bypasses YouTube bot detection)
+    if os.path.exists(COOKIES_FILE):
+        opts["cookiefile"] = COOKIES_FILE
+
     if ext not in ("mp3", "m4a"):
         opts["merge_output_format"] = ext
     else:
@@ -145,7 +152,10 @@ def get_info():
     if not data or not data.get("url"):
         return jsonify({"error": "No URL provided"}), 400
     try:
-        with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+        ydl_opts = {"quiet": True}
+        if os.path.exists(COOKIES_FILE):
+            ydl_opts["cookiefile"] = COOKIES_FILE
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(data["url"], download=False)
             return jsonify({
                 "title": info.get("title"),
@@ -160,7 +170,8 @@ def get_info():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "FETCH"})
+    cookies_loaded = os.path.exists(COOKIES_FILE)
+    return jsonify({"status": "ok", "service": "FETCH", "cookies": cookies_loaded})
 
 
 if __name__ == "__main__":
