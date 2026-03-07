@@ -57,8 +57,8 @@ def build_ydl_opts(data, out_path):
     ext = data.get("ext", "mp4")
 
     opts = {
-        # Format with multiple fallbacks
-        "format": f"{fmt}/bestvideo+bestaudio/best/best",
+        # Format with aggressive fallbacks - never fail on format
+        "format": "bestvideo+bestaudio/bestvideo*+bestaudio/best",
         "outtmpl": out_path,
         "noplaylist": not data.get("playlist", False),
         "quiet": True,
@@ -92,6 +92,7 @@ def build_ydl_opts(data, out_path):
 
     if ext not in ("mp3", "m4a"):
         opts["merge_output_format"] = ext
+        opts["format"] = "bestvideo+bestaudio/bestvideo*+bestaudio/best"
     else:
         opts["format"] = "bestaudio/best"
         opts["postprocessors"].append({
