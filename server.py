@@ -131,9 +131,12 @@ def resolve():
             -(x["height"] or 0)
         ))
 
-        best = next((f for f in formats if f["has_video"] and f["has_audio"]), None)
-        if not best and formats:
-            best = formats[0]
+        # Filter to only show formats that have BOTH video and audio
+        # If none exist, keep all (some platforms only have combined streams)
+        combined = [f for f in formats if f["has_video"] and f["has_audio"]]
+        display_formats = combined if combined else formats
+
+        best = display_formats[0] if display_formats else None
 
         return jsonify({
             "title": info.get("title"),
@@ -143,7 +146,7 @@ def resolve():
             "platform": info.get("extractor_key"),
             "stream_url": best["url"] if best else None,
             "stream_ext": best["ext"] if best else "mp4",
-            "formats": formats[:20],
+            "formats": display_formats[:20],
         })
 
     except yt_dlp.utils.DownloadError as e:
