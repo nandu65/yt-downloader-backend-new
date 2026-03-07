@@ -42,12 +42,14 @@ def get_ydl_opts():
     opts = {
         "quiet": True,
         "no_warnings": True,
+        # Don't request any specific format — just get all available URLs
+        "format": "best",
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "web"],
+                "player_client": ["android", "web", "tv_embedded"],
             }
         },
     }
