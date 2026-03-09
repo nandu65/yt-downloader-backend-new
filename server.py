@@ -171,7 +171,7 @@ def download():
     opts = base_ydl_opts()
     opts["outtmpl"] = out_template
     opts["noplaylist"] = not data.get("playlist", False)
-    opts["format"] = "bestvideo+bestaudio/bestvideo*+bestaudio/best"
+    opts["format"] = data.get("format", "bestvideo+bestaudio/bestvideo*+bestaudio/best")
     opts["postprocessors"] = []
 
     if ext not in ("mp3", "m4a"):
